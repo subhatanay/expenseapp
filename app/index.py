@@ -56,5 +56,6 @@ def whatsapp():
 
     return str(resp)
 
-if __name__ == '__main__':
-    app.run()
+# Export for Vercel
+def handler(environ, start_response):
+    return app(environ, start_response)
