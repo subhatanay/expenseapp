@@ -4,6 +4,7 @@
       { "src": "api/index.py", "use": "@vercel/python" }
     ],
     "routes": [
-      { "src": "/whatsapp", "dest": "api/index.py" }
+      { "src": "/whatsapp", "dest": "api/index.py" },
+      { "src": "/", "dest": "api/index.py" }
     ]
   }
