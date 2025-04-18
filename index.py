@@ -48,6 +48,8 @@ def init_db():
     except Exception as e:
         logger.exception("Error initializing DB")
 
+init_db()
+
 # App state for simple testing
 current_event_id = None
 pending_add = False
