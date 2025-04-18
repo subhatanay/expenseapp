@@ -128,17 +128,49 @@ def twilio_webhook():
                 except ValueError:
                     msg.body("❌ Amount should be a number. Try again.")
 
-    elif incoming_msg == "summary":
+    elif incoming_msg.startswith("summary"):
         if not current_event_id:
             msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
         else:
-            c.execute("SELECT date, SUM(amount) FROM transactions WHERE event_id = ? GROUP BY date", (current_event_id,))
-            rows = c.fetchall()
-            if rows:
-                lines = [f"{date}: ₹{amt}" for date, amt in rows]
-                msg.body("📊 Day-wise Summary:\n" + "\n".join(lines))
+            parts = incoming_msg.split()
+
+            # Case 1: "summary"
+            if len(parts) == 1:
+                today = datetime.date.today().isoformat()
+                c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = ? AND date = ?", (current_event_id, today))
+                row = c.fetchone()
+                total = row[0] if row[0] else 0
+                msg.body(f"📅 Total spent today ({today}): ₹{total}")
+
+            # Case 2: "summary date YYYY-MM-DD"
+            elif len(parts) == 3 and parts[1] == "date":
+                try:
+                    date = parts[2]
+                    c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = ? AND date = ?", (current_event_id, date))
+                    row = c.fetchone()
+                    total = row[0] if row[0] else 0
+                    msg.body(f"📅 Total spent on {date}: ₹{total}")
+                except Exception:
+                    msg.body("❌ Invalid format. Use: summary date YYYY-MM-DD")
+
+            # Case 3: "summary month YYYY-MM"
+            elif len(parts) == 3 and parts[1] == "month":
+                try:
+                    month = parts[2]
+                    like_pattern = month + "%"
+                    c.execute("SELECT date, SUM(amount) FROM transactions WHERE event_id = ? AND date LIKE ? GROUP BY date", (current_event_id, like_pattern))
+                    rows = c.fetchall()
+                    if rows:
+                        total = sum([row[1] for row in rows])
+                        lines = [f"{row[0]}: ₹{row[1]}" for row in rows]
+                        msg.body(f"📆 Monthly Total for {month}: ₹{total}\n\n📊 Daily Breakdown:\n" + "\n".join(lines))
+                    else:
+                        msg.body(f"ℹ️ No transactions found for month {month}")
+                except Exception:
+                    msg.body("❌ Invalid format. Use: summary month YYYY-MM")
+
             else:
-                msg.body("ℹ️ No transactions found for this event.")
+                msg.body("❌ Invalid summary format.\nTry:\n• summary\n• summary date YYYY-MM-DD\n• summary month YYYY-MM")
 
     else:
         msg.body("🤖 I didn't understand that.\nTry:\n• create <event>\n• list\n• switch <event>\n• add <item> <amount>\n• add (then items... then `done`)\n• summary")
