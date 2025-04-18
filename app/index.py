@@ -1,13 +1,12 @@
 from twilio.twiml.messaging_response import MessagingResponse
+import urllib.parse
 
-def handler(request, response):
-    # Safely extract the body if exists
+def handler(request):
+    # request.body is bytes, decode it safely
     body = request.body.decode() if request.body else ''
     
-    # Twilio sends data in `application/x-www-form-urlencoded` format
-    import urllib.parse
+    # Parse form data (Twilio sends application/x-www-form-urlencoded)
     parsed_body = urllib.parse.parse_qs(body)
-
     incoming_msg = parsed_body.get('Body', [''])[0].strip().lower()
 
     resp = MessagingResponse()
@@ -20,4 +19,5 @@ def handler(request, response):
     else:
         msg.body("🤖 I didn't understand that. Try: hello, add <item> <amount>")
 
-    return response.send(str(resp), status=200, content_type="application/xml")
+    # Return response as tuple: (body, status_code, headers)
+    return (str(resp), 200, {"Content-Type": "application/xml"})
