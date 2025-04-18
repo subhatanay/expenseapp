@@ -18,6 +18,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Connect to DB
 def get_conn():
     logger.info("Connecting to database...")
+    print(DATABASE_URL)
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
 # Initialize DB tables
