@@ -7,7 +7,7 @@ import datetime
 app = Flask(__name__)
 
 # DB Setup
-conn = sqlite3.connect("expense.db", check_same_thread=False)
+conn = sqlite3.connect("/tmp/expense.db", check_same_thread=False)
 c = conn.cursor()
 
 # Create Tables
