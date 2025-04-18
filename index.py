@@ -3,30 +3,45 @@ from twilio.twiml.messaging_response import MessagingResponse
 import urllib.parse
 import sqlite3
 import datetime
-import os
 
 app = Flask(__name__)
 
-# Set DB path to Vercel’s writable directory
-DB_PATH = "/tmp/expenses.db"
+# DB Setup
+conn = sqlite3.connect("expense.db", check_same_thread=False)
+c = conn.cursor()
 
-def init_db():
-    if not os.path.exists(DB_PATH):
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS expenses
-                     (id INTEGER PRIMARY KEY, date TEXT, item TEXT, amount REAL)''')
-        conn.commit()
-        conn.close()
+# Create Tables
+c.execute('''CREATE TABLE IF NOT EXISTS events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_name TEXT UNIQUE
+)''')
 
-init_db()
+c.execute('''CREATE TABLE IF NOT EXISTS transactions (
+    tran_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER,
+    date TEXT,
+    action TEXT,
+    item TEXT,
+    amount REAL
+)''')
+
+conn.commit()
+
+# App state (temporary for one-user test setup)
+current_event_id = None
+pending_add = False
+add_buffer = []  # stores list of (item, amount)
+
 
 @app.route('/', methods=['GET'])
-def health_check():
-    return 'Hello, Welcome to Expense bot!', 200, {'Content-Type': 'text/plain'}
+def hello():
+    return "Hello! Welcome to the WhatsApp Expense App", 200, {'Content-Type': 'text/plain'}
+
 
 @app.route('/', methods=['POST'])
 def twilio_webhook():
+    global current_event_id, pending_add, add_buffer
+
     body_str = request.get_data(as_text=True)
     data = urllib.parse.parse_qs(body_str)
     incoming_msg = data.get('Body', [''])[0].strip().lower()
@@ -34,43 +49,98 @@ def twilio_webhook():
     resp = MessagingResponse()
     msg = resp.message()
 
-    try:
-        if incoming_msg.startswith("add "):
-            # Example: add tea 20
+    if incoming_msg.startswith("create "):
+        event_name = incoming_msg.split("create ", 1)[1].strip()
+        try:
+            c.execute("INSERT INTO events (event_name) VALUES (?)", (event_name,))
+            conn.commit()
+            msg.body(f"✅ Event '{event_name}' created.")
+        except sqlite3.IntegrityError:
+            msg.body(f"⚠️ Event '{event_name}' already exists.")
+
+    elif incoming_msg == "list":
+        c.execute("SELECT event_name FROM events")
+        rows = c.fetchall()
+        if rows:
+            event_list = "\n".join([f"🔹 {row[0]}" for row in rows])
+            msg.body(f"📋 Your Events:\n{event_list}")
+        else:
+            msg.body("⚠️ No events found. Create one using `create <event_name>`.")
+
+    elif incoming_msg.startswith("switch "):
+        event_name = incoming_msg.split("switch ", 1)[1].strip()
+        c.execute("SELECT event_id FROM events WHERE event_name = ?", (event_name,))
+        row = c.fetchone()
+        if row:
+            current_event_id = row[0]
+            msg.body(f"🔄 Switched to event: {event_name}")
+        else:
+            msg.body("⚠️ Event not found. Please create it first.")
+
+    elif incoming_msg.startswith("add"):
+        if not current_event_id:
+            msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
+        elif len(incoming_msg.split()) == 1:
+            # Just "add" – start multi-step entry mode
+            pending_add = True
+            add_buffer = []
+            msg.body("📝 Add mode started. Send item and amount like:\n`tea 10`\nWhen done, type `done`.")
+        else:
+            # Single-line add
             parts = incoming_msg.split()
             if len(parts) < 3:
                 msg.body("❌ Usage: add <item> <amount>")
             else:
                 item = parts[1]
-                amount = float(parts[2])
-                date = str(datetime.date.today())
+                try:
+                    amount = float(parts[2])
+                    date = str(datetime.date.today())
+                    c.execute("INSERT INTO transactions (event_id, date, action, item, amount) VALUES (?, ?, ?, ?, ?)",
+                              (current_event_id, date, 'add', item, amount))
+                    conn.commit()
+                    msg.body(f"💸 Added: {item} - ₹{amount}")
+                except ValueError:
+                    msg.body("❌ Amount should be a number. Try again.")
 
-                conn = sqlite3.connect(DB_PATH)
-                c = conn.cursor()
-                c.execute("INSERT INTO expenses (date, item, amount) VALUES (?, ?, ?)", (date, item, amount))
-                conn.commit()
-                conn.close()
-
-                msg.body(f"✅ Added: {item} - ₹{amount}")
-
-        elif incoming_msg == "summary":
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-            c.execute("SELECT item, amount FROM expenses WHERE date=?", (str(datetime.date.today()),))
-            rows = c.fetchall()
-            conn.close()
-
-            if rows:
-                total = sum([r[1] for r in rows])
-                summary = "\n".join([f"{r[0]}: ₹{r[1]}" for r in rows])
-                msg.body(f"📊 Today's Expenses:\n{summary}\n\nTotal: ₹{total}")
+    elif pending_add:
+        if incoming_msg == "done":
+            if not add_buffer:
+                msg.body("⚠️ No entries added.")
             else:
-                msg.body("📭 No expenses recorded today.")
-
+                date = str(datetime.date.today())
+                for item, amount in add_buffer:
+                    c.execute("INSERT INTO transactions (event_id, date, action, item, amount) VALUES (?, ?, ?, ?, ?)",
+                              (current_event_id, date, 'add', item, amount))
+                conn.commit()
+                msg.body(f"✅ {len(add_buffer)} items added.\n🛑 Exiting add mode.")
+            pending_add = False
+            add_buffer = []
         else:
-            msg.body("👋 Welcome to Expense Bot!\nTry:\n• add <item> <amount>\n• summary")
+            parts = incoming_msg.split()
+            if len(parts) != 2:
+                msg.body("❌ Format should be: `item amount`\nOr type `done` to finish.")
+            else:
+                item = parts[0]
+                try:
+                    amount = float(parts[1])
+                    add_buffer.append((item, amount))
+                    msg.body(f"➕ Staged: {item} ₹{amount}")
+                except ValueError:
+                    msg.body("❌ Amount should be a number. Try again.")
 
-    except Exception as e:
-        msg.body(f"❌ Error: {str(e)}")
+    elif incoming_msg == "summary":
+        if not current_event_id:
+            msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
+        else:
+            c.execute("SELECT date, SUM(amount) FROM transactions WHERE event_id = ? GROUP BY date", (current_event_id,))
+            rows = c.fetchall()
+            if rows:
+                lines = [f"{date}: ₹{amt}" for date, amt in rows]
+                msg.body("📊 Day-wise Summary:\n" + "\n".join(lines))
+            else:
+                msg.body("ℹ️ No transactions found for this event.")
+
+    else:
+        msg.body("🤖 I didn't understand that.\nTry:\n• create <event>\n• list\n• switch <event>\n• add <item> <amount>\n• add (then items... then `done`)\n• summary")
 
     return str(resp), 200, {'Content-Type': 'application/xml'}
