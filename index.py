@@ -35,7 +35,7 @@ class handler(BaseHTTPRequestHandler):
         resp = MessagingResponse()
         msg = resp.message()
 
-        print("----- Got data from request")
+        print("----- Got data from request "  + body)
         try:
             if body.startswith("add "):
                 # Format: add coffee 30
