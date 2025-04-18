@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 import urllib.parse
@@ -7,41 +8,47 @@ import datetime
 
 app = Flask(__name__)
 
-# Neon DB connection URL from environment variable
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Get DB connection URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Connect function
+# Connect to DB
 def get_conn():
+    logger.info("Connecting to database...")
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
-# Init DB tables
+# Initialize DB tables
 def init_db():
-    conn = get_conn()
     try:
-        with conn.cursor() as c:
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS events (
-                    event_id SERIAL PRIMARY KEY,
-                    event_name TEXT UNIQUE
-                )
-            ''')
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS transactions (
-                    tran_id SERIAL PRIMARY KEY,
-                    event_id INTEGER,
-                    date TEXT,
-                    action TEXT,
-                    item TEXT,
-                    amount REAL
-                )
-            ''')
-            conn.commit()
-    except Exception as e:
-        print("DB Init Error:", e)
-    finally:
-        conn.close()
+        conn = get_conn()
+        c = conn.cursor()
 
-# App state (temporary for one-user test setup)
+        logger.info("Creating tables if not exist...")
+        c.execute('''CREATE TABLE IF NOT EXISTS events (
+            event_id SERIAL PRIMARY KEY,
+            event_name TEXT UNIQUE
+        )''')
+
+        c.execute('''CREATE TABLE IF NOT EXISTS transactions (
+            tran_id SERIAL PRIMARY KEY,
+            event_id INTEGER,
+            date TEXT,
+            action TEXT,
+            item TEXT,
+            amount REAL
+        )''')
+
+        conn.commit()
+        c.close()
+        conn.close()
+        logger.info("DB initialized successfully.")
+    except Exception as e:
+        logger.exception("Error initializing DB")
+
+# App state for simple testing
 current_event_id = None
 pending_add = False
 add_buffer = []
@@ -56,15 +63,15 @@ def hello():
 def twilio_webhook():
     global current_event_id, pending_add, add_buffer
 
-    body_str = request.get_data(as_text=True)
-    data = urllib.parse.parse_qs(body_str)
-    incoming_msg = data.get('Body', [''])[0].strip().lower()
-
-    resp = MessagingResponse()
-    msg = resp.message()
-
-    conn = None
     try:
+        body_str = request.get_data(as_text=True)
+        data = urllib.parse.parse_qs(body_str)
+        incoming_msg = data.get('Body', [''])[0].strip().lower()
+        logger.info(f"Incoming message: {incoming_msg}")
+
+        resp = MessagingResponse()
+        msg = resp.message()
+
         conn = get_conn()
         c = conn.cursor()
 
@@ -74,9 +81,11 @@ def twilio_webhook():
                 c.execute("INSERT INTO events (event_name) VALUES (%s)", (event_name,))
                 conn.commit()
                 msg.body(f"✅ Event '{event_name}' created.")
-            except psycopg2.Error:
+                logger.info(f"Created event: {event_name}")
+            except psycopg2.errors.UniqueViolation:
                 conn.rollback()
                 msg.body(f"⚠️ Event '{event_name}' already exists.")
+                logger.warning(f"Event already exists: {event_name}")
 
         elif incoming_msg == "list":
             c.execute("SELECT event_name FROM events")
@@ -94,6 +103,7 @@ def twilio_webhook():
             if row:
                 current_event_id = row[0]
                 msg.body(f"🔄 Switched to event: {event_name}")
+                logger.info(f"Switched to event: {event_name} (ID: {current_event_id})")
             else:
                 msg.body("⚠️ Event not found. Please create it first.")
 
@@ -117,6 +127,7 @@ def twilio_webhook():
                                   (current_event_id, date, 'add', item, amount))
                         conn.commit()
                         msg.body(f"💸 Added: {item} - ₹{amount}")
+                        logger.info(f"Transaction added: {item} ₹{amount} for event ID {current_event_id}")
                     except ValueError:
                         msg.body("❌ Amount should be a number. Try again.")
 
@@ -131,6 +142,7 @@ def twilio_webhook():
                                   (current_event_id, date, 'add', item, amount))
                     conn.commit()
                     msg.body(f"✅ {len(add_buffer)} items added.\n🛑 Exiting add mode.")
+                    logger.info(f"{len(add_buffer)} items added to event ID {current_event_id}")
                 pending_add = False
                 add_buffer = []
             else:
@@ -160,8 +172,8 @@ def twilio_webhook():
                     msg.body(f"📅 Total spent today ({today}): ₹{total}")
 
                 elif len(parts) == 3 and parts[1] == "date":
+                    date = parts[2]
                     try:
-                        date = parts[2]
                         c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = %s AND date = %s", (current_event_id, date))
                         row = c.fetchone()
                         total = row[0] if row[0] else 0
@@ -170,10 +182,11 @@ def twilio_webhook():
                         msg.body("❌ Invalid format. Use: summary date YYYY-MM-DD")
 
                 elif len(parts) == 3 and parts[1] == "month":
+                    month = parts[2]
                     try:
-                        month = parts[2]
                         like_pattern = month + "%"
-                        c.execute("SELECT date, SUM(amount) FROM transactions WHERE event_id = %s AND date LIKE %s GROUP BY date", (current_event_id, like_pattern))
+                        c.execute("SELECT date, SUM(amount) FROM transactions WHERE event_id = %s AND date LIKE %s GROUP BY date",
+                                  (current_event_id, like_pattern))
                         rows = c.fetchall()
                         if rows:
                             total = sum([row[1] for row in rows])
@@ -185,14 +198,14 @@ def twilio_webhook():
                         msg.body("❌ Invalid format. Use: summary month YYYY-MM")
                 else:
                     msg.body("❌ Invalid summary format.\nTry:\n• summary\n• summary date YYYY-MM-DD\n• summary month YYYY-MM")
+
         else:
             msg.body("🤖 I didn't understand that.\nTry:\n• create <event>\n• list\n• switch <event>\n• add <item> <amount>\n• add (then items... then `done`)\n• summary")
 
-    except Exception as e:
-        print("Error occurred:", e)
-        msg.body("❌ An internal error occurred. Please try again later.")
-    finally:
-        if conn:
-            conn.close()
+        c.close()
+        conn.close()
+        return str(resp), 200, {'Content-Type': 'application/xml'}
 
-    return str(resp), 200, {'Content-Type': 'application/xml'}
+    except Exception as e:
+        logger.exception("Unexpected error occurred!")
+        return "Internal Server Error", 500
