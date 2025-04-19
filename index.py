@@ -190,12 +190,11 @@ def twilio_webhook():
                                 total = sum([r[1] for r in rows])
                                 item_list = "\n".join([f"• {r[0]} – ₹{r[1]}" for r in rows])
                                 msg.body(f"📅 Expenses for {show_date}:\n{item_list}\n💰 Total: ₹{total}")
-
-            except ValueError:
-                msg.body("❌ Date format invalid. Use YYYY-MM-DD.")
-            except Exception as e:
-                print(f"[ERROR] Show command failed: {e}")
-                msg.body("❌ Error fetching data. Try again later.")
+                except ValueError:
+                    msg.body("❌ Date format invalid. Use YYYY-MM-DD.")
+                except Exception as e:
+                    print(f"[ERROR] Show command failed: {e}")
+                    msg.body("❌ Error fetching data. Try again later.")
         elif incoming_msg.startswith("summary"):
             if not current_event_id:
                 msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
