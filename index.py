@@ -160,7 +160,42 @@ def twilio_webhook():
                         msg.body(f"➕ Staged: {item} ₹{amount}")
                     except ValueError:
                         msg.body("❌ Amount should be a number. Try again.")
+        elif incoming_msg_startswith("show"):
+            if not current_event_id:
+                msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
+            else:
+                parts = incoming_msg.split()
+                try:
+                    if len(parts) == 1:
+                        # show today's expenses
+                        show_date = datetime.date.today().isoformat()
+                    elif len(parts) == 3 and parts[1] == "date":
+                        show_date = parts[2]
+                        datetime.datetime.strptime(show_date, '%Y-%m-%d')  # validate date
+                    else:
+                        msg.body("❌ Invalid format. Use:\n• show\n• show date YYYY-MM-DD")
+                        return str(resp), 200, {'Content-Type': 'application/xml'}
 
+                    with get_conn() as conn:
+                        with conn.cursor() as c:
+                            c.execute("""
+                                SELECT item, amount FROM transactions 
+                                WHERE event_id = %s AND date = %s
+                            """, (current_event_id, show_date))
+                            rows = c.fetchall()
+
+                            if not rows:
+                                msg.body(f"ℹ️ No expenses found for {show_date}")
+                            else:
+                                total = sum([r[1] for r in rows])
+                                item_list = "\n".join([f"• {r[0]} – ₹{r[1]}" for r in rows])
+                                msg.body(f"📅 Expenses for {show_date}:\n{item_list}\n💰 Total: ₹{total}")
+
+            except ValueError:
+                msg.body("❌ Date format invalid. Use YYYY-MM-DD.")
+            except Exception as e:
+                print(f"[ERROR] Show command failed: {e}")
+                msg.body("❌ Error fetching data. Try again later.")
         elif incoming_msg.startswith("summary"):
             if not current_event_id:
                 msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
