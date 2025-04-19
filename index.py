@@ -160,7 +160,7 @@ def twilio_webhook():
                         msg.body(f"➕ Staged: {item} ₹{amount}")
                     except ValueError:
                         msg.body("❌ Amount should be a number. Try again.")
-        elif incoming_msg_startswith("show"):
+        elif incoming_msg.startswith("show"):
             if not current_event_id:
                 msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
             else:
