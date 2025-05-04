@@ -1,4 +1,6 @@
-from flask import Flask, jsonify
+import json
+import os
+from io import StringIO
 import os.path
 import base64
 import re
@@ -9,7 +11,6 @@ from email import message_from_bytes
 from bs4 import BeautifulSoup
 from google.auth.transport.requests import Request
 
-app = Flask(__name__)
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -33,18 +34,29 @@ patterns = [
     }
 ]
 
+
+
 def authenticate_gmail():
     creds = None
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    token_path = 'token.json'
+
+    # Write creds.json from GitHub Secrets
+    if 'GMAIL_CREDS_JSON' in os.environ:
+        with open('creds.json', 'w') as f:
+            f.write(os.environ['GMAIL_CREDS_JSON'])
+
+    # Write token.json if provided
+    if 'TOKEN_JSON' in os.environ:
+        with open(token_path, 'w') as f:
+            f.write(os.environ['TOKEN_JSON'])
+
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('creds.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+            raise Exception("Token.json missing or needs manual OAuth authorization.")
     return creds
 
 def extract_text_from_payload(payload):
@@ -113,14 +125,13 @@ def get_transaction_emails(service):
             
     return transactions
 
-@app.route('/api/readEmails', methods=['GET'])
 def read_emails_api():
     try:
         creds = authenticate_gmail()
         service = build('gmail', 'v1', credentials=creds)
         data = get_transaction_emails(service)
-        return jsonify({"transactions": data, "status": "success"}), 200
     except Exception as e:
-        return jsonify({"error": str(e), "status": "fail"}), 500
+        print(e)
 
-
+if __name__ == '__main__':
+    read_emails_api()

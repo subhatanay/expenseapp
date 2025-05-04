@@ -5,11 +5,5 @@
   ],
   "routes": [
     { "src": "/.*", "dest": "index.py" }
-  ],
-  "crons": [
-    {
-      "path": "/api/readEmails",
-      "schedule": "0/5 * * * *"  
-    }
   ]
 }
