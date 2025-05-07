@@ -207,7 +207,7 @@ def twilio_webhook():
                     msg.body("🤖 Unknown command.\nTry:\n• create <event>\n• list\n• switch <event>\n• add tea 10\n• add (multi-mode)\n• summary\n• show")
 
     except Exception as e:
-        logging.exception("Webhook failure")
+        logging.exception("Webhook failure ", e)
         msg.body("❌ Something went wrong. Please try again later.")
 
     return str(resp), 200, {'Content-Type': 'application/xml'}          
