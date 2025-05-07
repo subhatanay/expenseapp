@@ -24,6 +24,48 @@ def get_conn():
 def hello():
     return "Hello! Welcome to the WhatsApp Expense App", 200, {'Content-Type': 'text/plain'}
 
+@app.route('/api/email-configs', methods=['GET'])
+def get_email_configs():
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT
+                        u.id as user_id, u.name, u.phone_number,
+                        ue.email, ue.provider, ue.token, ue.id as email_config_id,
+                        ep.type, ep.pattern_text, ep.source
+                    FROM users u
+                    JOIN user_email_configs ue ON u.id = ue.user_id
+                    JOIN user_email_patterns uep ON uep.user_email_config_id = ue.id AND uep.active = TRUE
+                    JOIN email_patterns ep ON ep.id = uep.email_pattern_id
+                """)
+                rows = cur.fetchall()
+
+                result_map = {}
+                for row in rows:
+                    user_id = row[0]
+                    if user_id not in result_map:
+                        result_map[user_id] = {
+                            "user_id": user_id,
+                            "name": row[1],
+                            "phone_number": row[2],
+                            "email": row[3],
+                            "provider": row[4],
+                            "token": row[5],
+                            "patterns": []
+                        }
+                    result_map[user_id]["patterns"].append({
+                        "type": row[7],
+                        "pattern_text": row[8],
+                        "source": row[9]
+                    })
+
+                return jsonify(list(result_map.values()))
+
+    except Exception as e:
+        logging.exception("Error fetching email config data")
+        return jsonify({"error": "Internal server error"}), 500
+        
 
 @app.route('/', methods=['POST'])
 def twilio_webhook():
@@ -145,7 +187,17 @@ def twilio_webhook():
                     pass  # Fill in with previous logic
 
                 else:
-                    msg.body("🤖 I didn't understand that.\nTry:\n• create <event>\n• list\n• switch <event>\n• add <item> <amount>\n• add (then items... then `done`)\n• summary\n• show")
+                    msg.body(
+    "🤖 I didn't understand that.\n\n"
+    "Try:\n"
+    "• create <event>\n"
+    "• list\n"
+    "• switch <event>\n"
+    "• add <item> <amount>\n"
+    "• add (then items... then `done`)\n"
+    "• summary\n"
+    "• show"
+)
 
     except Exception:
         logging.exception("Exception in Twilio webhook handler")
