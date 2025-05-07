@@ -31,6 +31,7 @@ def twilio_webhook():
     data = urllib.parse.parse_qs(body_str)
     incoming_msg = data.get('Body', [''])[0].strip().lower()
     phone_number = data.get('From', [''])[0]
+    phone_number = phone_number.replace('whatsapp:', '')
 
     resp = MessagingResponse()
     msg = resp.message()
