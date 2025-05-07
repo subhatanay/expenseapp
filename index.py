@@ -178,13 +178,109 @@ def twilio_webhook():
                                 logging.exception("Failed to parse buffer item")
                                 msg.body("❌ Amount should be a number. Try again.")
 
-                elif incoming_msg.startswith("summary"):
-                    # Summary command handling unchanged
-                    pass  # Fill in with previous logic
+                elif incoming_msg == "show pending":
+                    # Show staged transactions (pending ones) for the user
+                    c.execute("SELECT txn_id, amount, date FROM transactions WHERE user_id = %s AND event_id = %s AND iten IS NULL", 
+                              (user_id, current_event_id))
+                    rows = c.fetchall()
+                    if rows:
+                        # Store the transaction IDs and map them to numbers
+                        # We'll create a mapping of the transaction number to the actual txn_id
+                        txn_map = {}
+                        pending_list = "\n".join([f"{idx+1}. ₹{row[2]} on {row[3]} at {row[1]} [TXN#{row[0]}]" 
+                                                 for idx, row in enumerate(rows)])
+                        for idx, row in enumerate(rows):
+                            txn_map[idx + 1] = row[0]  # Map number to txn_id
+
+                        # Save the mapping in the  database to use later
+                        set_user_setting(c, user_id, 'pending_txn_map', json.dumps(txn_map))
+
+                        msg.body(f"📋 Pending Transactions:\n{pending_list}\n\nReply with:\ntag <number> <category>\nExample: tag 2 groceries")
+                    else:
+                        msg.body("⚠️ No pending transactions found.")
+
+                elif incoming_msg.startswith("tag"):
+                    parts = incoming_msg.split()
+                    if len(parts) == 3:
+                        try:
+                            txn_number = int(parts[1])  # Get the transaction number
+                            category = parts[2]  # Get the category
+
+                            # Fetch the transaction ID from the user settings (txn_map)
+                            txn_map = get_user_setting(c, user_id, 'pending_txn_map', {})
+                            if txn_map:
+                                txn_map = json.loads(txn_map)
+                                
+                            txn_id = txn_map.get(txn_number)
+
+                            if txn_id:
+                                # Update the transaction with the category tag
+                                c.execute("UPDATE transactions SET category = %s WHERE txn_id = %s", (category, txn_id))
+                                msg.body(f"Tagged TXN#{txn_id} with category '{category}' ✅")
+                            else:
+                                msg.body("⚠️ Transaction not found. Please check the number and try again.")
+                        except ValueError:
+                            msg.body("❌ Invalid input. Please use the format: tag <number> <category>")
+                    else:
+                        msg.body("❌ Invalid format. Please use the format: tag <number> <category>")
 
                 elif incoming_msg.startswith("show"):
-                    # Show command handling unchanged
-                    pass  # Fill in with previous logic
+                    if not current_event_id:
+                        msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
+                    else:
+                        parts = incoming_msg.split()
+                        try:
+                            if len(parts) == 1:
+                                show_date = datetime.date.today().isoformat()
+                            elif len(parts) == 3 and parts[1] == "date":
+                                show_date = parts[2]
+                                datetime.datetime.strptime(show_date, '%Y-%m-%d')
+                            else:
+                                msg.body("❌ Invalid format. Use:\n• show\n• show date YYYY-MM-DD")
+                                return str(resp), 200, {'Content-Type': 'application/xml'}
+
+                            c.execute("SELECT item, amount FROM transactions WHERE event_id = %s AND date = %s and user_id", (current_event_id, show_date, user_id))
+                            rows = c.fetchall()
+                            if not rows:
+                                msg.body(f"ℹ️ No expenses found for {show_date}")
+                            else:
+                                total = sum([r[1] for r in rows])
+                                item_list = "\n".join([f"• {r[0]} – ₹{r[1]}" for r in rows])
+                                msg.body(f"📅 Expenses for {show_date}:\n{item_list}\n💰 Total: ₹{total}")
+                        except Exception as e:
+                            logging.error(f"[ERROR] Show command failed: {e}")
+                            msg.body("❌ Error fetching data. Check format or try again later.")
+
+                elif incoming_msg.startswith("summary"):
+                     if not current_event_id:
+                        msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
+                    else:
+                        parts = incoming_msg.split()
+                        if len(parts) == 1:
+                            today = datetime.date.today().isoformat()
+                            c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = %s AND date = %s and user_id = %s", (current_event_id, today, user_id))
+                            row = c.fetchone()
+                            total = row[0] if row[0] else 0
+                            msg.body(f"📅 Total spent today ({today}): ₹{total}")
+                        elif len(parts) == 3 and parts[1] == "date":
+                            date = parts[2]
+                            c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = %s AND date = %s and user_id = %s", (current_event_id, date, user_id))
+                            row = c.fetchone()
+                            total = row[0] if row[0] else 0
+                            msg.body(f"📅 Total spent on {date}: ₹{total}")
+                        elif len(parts) == 3 and parts[1] == "month":
+                            month = parts[2]
+                            like_pattern = month + "%"
+                            c.execute("SELECT date, SUM(amount) FROM transactions WHERE event_id = %s AND date LIKE %s and user_id = %s GROUP BY date", (current_event_id, like_pattern, user_id))
+                            rows = c.fetchall()
+                            if rows:
+                                total = sum([row[1] for row in rows])
+                                lines = [f"{row[0]}: ₹{row[1]}" for row in rows]
+                                msg.body(f"📆 Monthly Total for {month}: ₹{total}\n\n📊 Daily Breakdown:\n" + "\n".join(lines))
+                            else:
+                                msg.body(f"ℹ️ No transactions found for month {month}")
+                        else:
+                            msg.body("❌ Invalid summary format.\nTry:\n• summary\n• summary date YYYY-MM-DD\n• summary month YYYY-MM")
 
                 else:
                     msg.body(
@@ -205,6 +301,45 @@ def twilio_webhook():
 
     return str(resp), 200, {'Content-Type': 'application/xml'}
 
+
+@app.route('/api/staged-transactions', methods=['POST'])
+def add_staged_transaction():
+    data = request.json
+    required_fields = ["user_id", "transaction_date", "amount", "action"]
+
+    # Validate required fields
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    try:
+        event_id = 1  # Hardcoded or fetch dynamically if needed
+        created_at = datetime.now()
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO transactions 
+                        (event_id, date, action, item, amount, user_id, created_at, merchant, transaction_ref)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING tran_id
+                """, (
+                    event_id,
+                    data["transaction_date"],
+                    data["action"],
+                    "",  # item left blank
+                    data["amount"],
+                    data["user_id"],
+                    created_at,
+                    data.get("merchant"),
+                    data.get("transaction_ref")
+                ))
+                new_tran_id = cur.fetchone()[0]
+                conn.commit()
+                return jsonify({"tran_id": new_tran_id, "message": "Transaction added successfully"}), 201
+
+    except Exception as e:
+        logging.exception("Error inserting transaction")
+        return jsonify({"error": "Internal server error"}), 500
 
 # ---------- User Settings Utilities ----------
 def get_user_setting(cur, user_id, key, default=None):
