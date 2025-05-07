@@ -252,7 +252,7 @@ def twilio_webhook():
                             msg.body("❌ Error fetching data. Check format or try again later.")
 
                 elif incoming_msg.startswith("summary"):
-                     if not current_event_id:
+                    if not current_event_id:
                         msg.body("⚠️ Please switch to an event first using `switch <event_name>`")
                     else:
                         parts = incoming_msg.split()
