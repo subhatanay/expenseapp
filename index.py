@@ -194,5 +194,5 @@ def get_user_by_phonenumber(phone_number, cur):
         row = cur.fetchone()
         return {"user_id": row[0]} if row else None
     except Exception:
-        logging.exception("Error fetching user info")
+        logging.error("Error fetching user info", exc_info=True)
         return None
