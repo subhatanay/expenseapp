@@ -190,7 +190,7 @@ def set_multiple_settings(cur, user_id, settings_dict):
 
 def get_user_by_phonenumber(phone_number, cur):
     try:
-        cur.execute("SELECT user_id FROM users WHERE phone = %s", (phone_number,))
+        cur.execute("SELECT user_id FROM users WHERE phone_number = %s", (phone_number,))
         row = cur.fetchone()
         return {"user_id": row[0]} if row else None
     except Exception:
