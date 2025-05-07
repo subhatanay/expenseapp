@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
 import urllib.parse
 import psycopg2
@@ -65,7 +65,7 @@ def get_email_configs():
     except Exception as e:
         logging.exception("Error fetching email config data")
         return jsonify({"error": "Internal server error"}), 500
-        
+
 
 @app.route('/', methods=['POST'])
 def twilio_webhook():
