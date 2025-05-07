@@ -168,7 +168,13 @@ def get_user_settings(cur, user_id):
     try:
         cur.execute("SELECT key, value FROM user_settings WHERE user_id = %s", (user_id,))
         rows = cur.fetchall()
-        return {row[0]: json.loads(row[1]) for row in rows}
+        result = {}
+        for key, value in rows:
+            try:
+                result[key] = json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                result[key] = value
+        return result
     except Exception:
         logging.exception("Error fetching user settings")
         return {}
