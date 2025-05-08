@@ -53,6 +53,7 @@ def get_email_configs():
                             "email": row[3],
                             "provider": row[4],
                             "token": row[5],
+                            "email_config_id": row[6],
                             "patterns": []
                         }
                     result_map[user_id]["patterns"].append({
@@ -347,6 +348,46 @@ def add_staged_transaction():
     except Exception as e:
         logging.exception(e)
         return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/api/email-configs/<int:email_config_id>', methods=['PUT'])
+def update_last_email_fetch(email_config_id):
+    data = request.json
+    last_fetched_email_id = data.get("last_fetched_email_id")
+    last_email_fetch_time = data.get("last_email_fetch_time")
+
+    if not last_fetched_email_id and not last_email_fetch_time:
+        return jsonify({"error": "At least one field must be provided"}), 400
+
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                # Prepare the SET clause dynamically
+                updates = []
+                values = []
+
+                if last_fetched_email_id is not None:
+                    updates.append("last_fetched_email_id = %s")
+                    values.append(last_fetched_email_id)
+
+                if last_email_fetch_time is not None:
+                    updates.append("last_email_fetch_time = %s")
+                    values.append(last_email_fetch_time)
+
+                values.append(email_config_id)
+                set_clause = ", ".join(updates)
+
+                cur.execute(
+                    f"UPDATE user_email_configs SET {set_clause} WHERE id = %s",
+                    tuple(values)
+                )
+                conn.commit()
+
+                return jsonify({"message": "Email fetch info updated successfully"}), 200
+
+    except Exception as e:
+        logging.exception("Error updating email fetch info")
+        return jsonify({"error": "Internal server error"}), 500
+
 
 # ---------- User Settings Utilities ----------
 def get_user_setting(cur, user_id, key, default=None):
