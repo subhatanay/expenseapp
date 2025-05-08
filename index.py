@@ -154,7 +154,7 @@ def twilio_webhook():
                         if not add_buffer:
                             msg.body("⚠️ No entries added.")
                         else:
-                            show_date = str(datetime.date.today())
+                            show_date = str(date.today())
                             try:
                                 for item, amount in add_buffer:
                                     c.execute("INSERT INTO transactions (event_id, date, action, item, amount, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
