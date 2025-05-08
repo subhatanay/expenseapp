@@ -180,7 +180,7 @@ def twilio_webhook():
 
                 elif incoming_msg == "show pending":
                     # Show staged transactions (pending ones) for the user
-                    c.execute("SELECT txn_id, amount, date FROM transactions WHERE user_id = %s AND event_id = %s AND iten IS NULL", 
+                    c.execute("SELECT txn_id, amount, date FROM transactions WHERE user_id = %s AND event_id = %s AND item IS NULL", 
                               (user_id, current_event_id))
                     rows = c.fetchall()
                     if rows:
@@ -309,24 +309,27 @@ def add_staged_transaction():
 
     # Validate required fields
     if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
+        return jsonify({"error": "Missing required fields"}), 400 
+    
     try:
-        event_id = 1  # Hardcoded or fetch dynamically if needed
         created_at = datetime.now()
 
         with get_conn() as conn:
             with conn.cursor() as cur:
+                user_info = get_user_by_user_id(data['user_id'], cur)
+                if not user_info:
+                    return jsonify({"error": f"User {data['user_id']} not found in database."}), 404
+                user_settings = get_user_settings(c, user_info['user_id'])
+                current_event_id = user_settings.get("current_event_id") 
                 cur.execute("""
                     INSERT INTO transactions 
-                        (event_id, date, action, item, amount, user_id, created_at, merchant, transaction_ref)
+                        (event_id, date, action, amount, user_id, created_at, merchant, transaction_ref)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING tran_id
                 """, (
-                    event_id,
+                    current_event_id,
                     data["transaction_date"],
                     data["action"],
-                    "",  # item left blank
                     data["amount"],
                     data["user_id"],
                     created_at,
@@ -386,6 +389,14 @@ def get_user_by_phonenumber(phone_number, cur):
         cur.execute("SELECT id FROM users WHERE phone_number = %s", (phone_number,))
         row = cur.fetchone()
         return {"user_id": row[0]} if row else None
+    except Exception:
+        logging.error("Error fetching user info", exc_info=True)
+        return None
+def get_user_by_user_id(user_id, cur):
+    try:
+        cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+        return json.loads(row) if row else None
     except Exception:
         logging.error("Error fetching user info", exc_info=True)
         return None
