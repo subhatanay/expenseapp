@@ -33,7 +33,7 @@ def get_email_configs():
                 cur.execute("""
                     SELECT
                         u.id as user_id, u.name, u.phone_number,
-                        ue.email, ue.provider, ue.token, ue.id as email_config_id
+                        ue.email, ue.provider, ue.token, ue.id as email_config_id,
                         ep.type, ep.pattern_text, ep.source, ue.last_fetched_email_id,last_email_fetch_time
                     FROM users u
                     JOIN user_email_configs ue ON u.id = ue.user_id
