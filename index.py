@@ -394,9 +394,9 @@ def get_user_by_phonenumber(phone_number, cur):
         return None
 def get_user_by_user_id(user_id, cur):
     try:
-        cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        cur.execute("SELECT id, name, phone_number FROM users WHERE id = %s", (user_id,))
         row = cur.fetchone()
-        return dict(row) if row else None
+        return {'user_id': row[0], 'name': row[1], 'phone_number': row[2]} if row else None
     except Exception as e:
         logging.error(e)
         return None
