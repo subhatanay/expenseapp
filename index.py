@@ -33,8 +33,8 @@ def get_email_configs():
                 cur.execute("""
                     SELECT
                         u.id as user_id, u.name, u.phone_number,
-                        ue.email, ue.provider, ue.token, ue.id as email_config_id,
-                        ep.type, ep.pattern_text, ep.source
+                        ue.email, ue.provider, ue.token, ue.id as email_config_id
+                        ep.type, ep.pattern_text, ep.source, ue.last_fetched_email_id,last_email_fetch_time
                     FROM users u
                     JOIN user_email_configs ue ON u.id = ue.user_id
                     JOIN user_email_patterns uep ON uep.user_email_config_id = ue.id AND uep.active = TRUE
@@ -54,7 +54,9 @@ def get_email_configs():
                             "provider": row[4],
                             "token": row[5],
                             "email_config_id": row[6],
-                            "patterns": []
+                            "patterns": [],
+                            "last_fetched_email_id": row[10],
+                            "last_email_fetch_time": row[11],
                         }
                     result_map[user_id]["patterns"].append({
                         "type": row[7],
@@ -349,19 +351,19 @@ def add_staged_transaction():
         logging.exception(e)
         return jsonify({"error": "Internal server error"}), 500
 
-@app.route('/api/email-configs/<int:email_config_id>', methods=['PUT'])
-def update_last_email_fetch(email_config_id):
+@app.route('/api/users/<int:user_id>/email-configs/<int:email_config_id>', methods=['PUT'])
+def update_email_config_fetch_info(user_id, email_config_id):
     data = request.json
     last_fetched_email_id = data.get("last_fetched_email_id")
     last_email_fetch_time = data.get("last_email_fetch_time")
 
     if not last_fetched_email_id and not last_email_fetch_time:
-        return jsonify({"error": "At least one field must be provided"}), 400
+        return jsonify({"error": "At least one of 'last_fetched_email_id' or 'last_email_fetch_time' is required"}), 400
 
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                # Prepare the SET clause dynamically
+                # Build dynamic update fields
                 updates = []
                 values = []
 
@@ -373,19 +375,24 @@ def update_last_email_fetch(email_config_id):
                     updates.append("last_email_fetch_time = %s")
                     values.append(last_email_fetch_time)
 
-                values.append(email_config_id)
+                # Final SQL
+                values.extend([user_id, email_config_id])
                 set_clause = ", ".join(updates)
 
                 cur.execute(
-                    f"UPDATE user_email_configs SET {set_clause} WHERE id = %s",
+                    f"""
+                    UPDATE user_email_configs
+                    SET {set_clause}
+                    WHERE user_id = %s AND id = %s
+                    """,
                     tuple(values)
                 )
                 conn.commit()
 
-                return jsonify({"message": "Email fetch info updated successfully"}), 200
+                return jsonify({"message": "Email config updated successfully"}), 200
 
     except Exception as e:
-        logging.exception("Error updating email fetch info")
+        logging.exception("Error updating email config fetch info")
         return jsonify({"error": "Internal server error"}), 500
 
 
