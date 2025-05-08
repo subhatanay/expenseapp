@@ -180,7 +180,7 @@ def twilio_webhook():
 
                 elif incoming_msg == "show pending":
                     # Show staged transactions (pending ones) for the user
-                    c.execute("SELECT txn_id, amount, date FROM transactions WHERE user_id = %s AND event_id = %s AND item IS NULL", 
+                    c.execute("SELECT tran_id, amount, date FROM transactions WHERE user_id = %s AND event_id = %s AND item IS NULL", 
                               (user_id, current_event_id))
                     rows = c.fetchall()
                     if rows:
@@ -215,7 +215,7 @@ def twilio_webhook():
 
                             if txn_id:
                                 # Update the transaction with the category tag
-                                c.execute("UPDATE transactions SET category = %s WHERE txn_id = %s", (category, txn_id))
+                                c.execute("UPDATE transactions SET category = %s WHERE tran_id = %s", (category, txn_id))
                                 msg.body(f"Tagged TXN#{txn_id} with category '{category}' ✅")
                             else:
                                 msg.body("⚠️ Transaction not found. Please check the number and try again.")
@@ -295,8 +295,9 @@ def twilio_webhook():
     "• show"
 )
 
-    except Exception:
+    except Exception as e:
         logging.exception("Exception in Twilio webhook handler")
+        logging.exception(e)
         msg.body("❌ Something went wrong. Please try again later.")
 
     return str(resp), 200, {'Content-Type': 'application/xml'}
