@@ -139,9 +139,9 @@ def twilio_webhook():
                         item = parts[1]
                         try:
                             amount = float(parts[2])
-                            date = str(datetime.date.today())
+                            show_date = str(datetime.date.today())
                             c.execute("INSERT INTO transactions (event_id, date, action, item, amount, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
-                                      (current_event_id, date, 'add', item, amount, user_id))
+                                      (current_event_id, show_date, 'add', item, amount, user_id))
                             msg.body(f"💸 Added: {item} - ₹{amount}")
                         except Exception:
                             logging.exception("Failed to add transaction")
@@ -154,11 +154,11 @@ def twilio_webhook():
                         if not add_buffer:
                             msg.body("⚠️ No entries added.")
                         else:
-                            date = str(datetime.date.today())
+                            show_date = str(datetime.date.today())
                             try:
                                 for item, amount in add_buffer:
                                     c.execute("INSERT INTO transactions (event_id, date, action, item, amount, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
-                                              (current_event_id, date, 'add', item, amount, user_id))
+                                              (current_event_id, show_date, 'add', item, amount, user_id))
                                 msg.body(f"✅ {len(add_buffer)} items added.\n🛑 Exiting add mode.")
                             except Exception:
                                 logging.exception("Error inserting buffered transactions")
@@ -242,7 +242,7 @@ def twilio_webhook():
                                 msg.body("❌ Invalid format. Use:\n• show\n• show date YYYY-MM-DD")
                                 return str(resp), 200, {'Content-Type': 'application/xml'}
 
-                            c.execute("SELECT item, amount FROM transactions WHERE event_id = %s AND date = %s and user_id", (current_event_id, show_date, user_id))
+                            c.execute("SELECT item, amount FROM transactions WHERE event_id = %s AND date = %s and user_id = %s", (current_event_id, show_date, user_id))
                             rows = c.fetchall()
                             if not rows:
                                 msg.body(f"ℹ️ No expenses found for {show_date}")
@@ -260,14 +260,14 @@ def twilio_webhook():
                     else:
                         parts = incoming_msg.split()
                         if len(parts) == 1:
-                            today = datetime.date.today().isoformat()
+                            today = date.today().isoformat()
                             c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = %s AND date = %s and user_id = %s", (current_event_id, today, user_id))
                             row = c.fetchone()
                             total = row[0] if row[0] else 0
                             msg.body(f"📅 Total spent today ({today}): ₹{total}")
                         elif len(parts) == 3 and parts[1] == "date":
-                            date = parts[2]
-                            c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = %s AND date = %s and user_id = %s", (current_event_id, date, user_id))
+                            show_date = parts[2]
+                            c.execute("SELECT SUM(amount) FROM transactions WHERE event_id = %s AND date = %s and user_id = %s", (current_event_id, show_date, user_id))
                             row = c.fetchone()
                             total = row[0] if row[0] else 0
                             msg.body(f"📅 Total spent on {date}: ₹{total}")
