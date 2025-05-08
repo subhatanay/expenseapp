@@ -398,5 +398,5 @@ def get_user_by_user_id(user_id, cur):
         row = cur.fetchone()
         return dict(row) if row else None
     except Exception as e:
-        logging.error("Error fetching user info", exc_info=True)
+        logging.error(e)
         return None
