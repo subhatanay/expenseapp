@@ -180,7 +180,7 @@ def twilio_webhook():
 
                 elif incoming_msg == "show pending":
                     # Show staged transactions (pending ones) for the user
-                    c.execute("SELECT tran_id, amount, date FROM transactions WHERE user_id = %s AND event_id = %s AND item IS NULL", 
+                    c.execute("SELECT tran_id, merchent, amount, date FROM transactions WHERE user_id = %s AND event_id = %s AND item IS NULL", 
                               (user_id, current_event_id))
                     rows = c.fetchall()
                     if rows:
