@@ -324,7 +324,7 @@ def add_staged_transaction():
                 cur.execute("""
                     INSERT INTO transactions 
                         (event_id, date, action, amount, user_id, created_at, merchant, transaction_ref)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING tran_id
                 """, (
                     current_event_id,
