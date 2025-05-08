@@ -237,7 +237,7 @@ def twilio_webhook():
                                 show_date = date.today().isoformat()
                             elif len(parts) == 3 and parts[1] == "date":
                                 show_date = parts[2]
-                                datetime.datetime.strptime(show_date, '%Y-%m-%d')
+                                datetime.strptime(show_date, '%Y-%m-%d')
                             else:
                                 msg.body("❌ Invalid format. Use:\n• show\n• show date YYYY-MM-DD")
                                 return str(resp), 200, {'Content-Type': 'application/xml'}
