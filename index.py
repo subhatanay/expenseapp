@@ -318,7 +318,7 @@ def add_staged_transaction():
             with conn.cursor() as cur:
                 user_info = get_user_by_user_id(data['user_id'], cur)
                 if not user_info:
-                    return jsonify({"error": f"User {data['user_id']} not found in database."}), 404
+                    return jsonify({"error": f"User with id {data['user_id']} not found."}), 404
                 user_settings = get_user_settings(c, user_info['user_id'])
                 current_event_id = user_settings.get("current_event_id") 
                 cur.execute("""
@@ -394,7 +394,7 @@ def get_user_by_phonenumber(phone_number, cur):
         return None
 def get_user_by_user_id(user_id, cur):
     try:
-        cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+        cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         row = cur.fetchone()
         return json.loads(row) if row else None
     except Exception:
