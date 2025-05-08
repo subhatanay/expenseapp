@@ -3,6 +3,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 import urllib.parse
 import psycopg2
 from datetime import datetime
+from datetime import date
 import os
 import logging
 import json
@@ -222,6 +223,7 @@ def twilio_webhook():
                                 msg.body("⚠️ Transaction not found. Please check the number and try again.")
                         except ValueError:
                             msg.body("❌ Invalid input. Please use the format: tag <number> <category>")
+                            
                     else:
                         msg.body("❌ Invalid format. Please use the format: tag <number> <category>")
 
@@ -232,7 +234,7 @@ def twilio_webhook():
                         parts = incoming_msg.split()
                         try:
                             if len(parts) == 1:
-                                show_date = datetime.date.today().isoformat()
+                                show_date = date.today().isoformat()
                             elif len(parts) == 3 and parts[1] == "date":
                                 show_date = parts[2]
                                 datetime.datetime.strptime(show_date, '%Y-%m-%d')
