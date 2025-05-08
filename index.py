@@ -338,7 +338,7 @@ def add_staged_transaction():
                 return jsonify({"tran_id": new_tran_id, "message": "Transaction added successfully"}), 201
 
     except Exception as e:
-        logging.exception("Error inserting transaction")
+        logging.exception(e)
         return jsonify({"error": "Internal server error"}), 500
 
 # ---------- User Settings Utilities ----------
