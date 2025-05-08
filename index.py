@@ -203,7 +203,7 @@ def twilio_webhook():
                     parts = incoming_msg.split()
                     if len(parts) == 3:
                         try:
-                            txn_number = int(parts[1])  # Get the transaction number
+                            txn_number = parts[1]  # Get the transaction number
                             category = parts[2]  # Get the category
 
                             # Fetch the transaction ID from the user settings (txn_map)
