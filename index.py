@@ -319,7 +319,7 @@ def add_staged_transaction():
                 user_info = get_user_by_user_id(data['user_id'], cur)
                 if not user_info:
                     return jsonify({"error": f"User with id {data['user_id']} not found."}), 404
-                user_settings = get_user_settings(c, user_info['user_id'])
+                user_settings = get_user_settings(cur, user_info['user_id'])
                 current_event_id = user_settings.get("current_event_id") 
                 cur.execute("""
                     INSERT INTO transactions 
@@ -392,6 +392,7 @@ def get_user_by_phonenumber(phone_number, cur):
     except Exception:
         logging.error("Error fetching user info", exc_info=True)
         return None
+
 def get_user_by_user_id(user_id, cur):
     try:
         cur.execute("SELECT id, name, phone_number FROM users WHERE id = %s", (user_id,))
