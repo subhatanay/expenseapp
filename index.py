@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
 import urllib.parse
 import psycopg2
-import datetime
+from datetime import datetime
 import os
 import logging
 import json
