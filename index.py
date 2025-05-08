@@ -216,8 +216,8 @@ def twilio_webhook():
 
                             if txn_id:
                                 # Update the transaction with the category tag
-                                c.execute("UPDATE transactions SET category = %s WHERE tran_id = %s", (category, txn_id))
-                                msg.body(f"Tagged TXN#{txn_id} with category '{category}' ✅")
+                                c.execute("UPDATE transactions SET item = %s WHERE tran_id = %s", (category, txn_id))
+                                msg.body(f"Tagged TXN#{txn_id} with item '{category}' ✅")
                             else:
                                 msg.body("⚠️ Transaction not found. Please check the number and try again.")
                         except ValueError:
