@@ -396,7 +396,7 @@ def get_user_by_user_id(user_id, cur):
     try:
         cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         row = cur.fetchone()
-        return json.loads(row) if row else None
-    except Exception:
+        return dict(row) if row else None
+    except Exception as e:
         logging.error("Error fetching user info", exc_info=True)
         return None
