@@ -87,7 +87,14 @@ def parse_transaction_details(body, regex_pattern, pattern_type):
             data["transaction_ref"] = data.get("ref")
             data["merchant"] = data.get("merchant", "UNKNOWN")
             data["action"] = "CREDIT" if "CREDIT" in pattern_type.upper() else "DEBIT"
-            data["transaction_date"] = data.get("date")
+            
+            try:
+                # Convert from "dd-mm-yy" to "yyyy-mm-dd"
+                parsed_date = datetime.strptime(data.get("date"), "%d-%m-%y")
+                data["transaction_date"] = parsed_date.strftime("%Y-%m-%d")
+            except Exception as e:
+                logger.warning("Invalid date format '%s', using today's date. Error: %s", data.get("date"), e)
+                data["transaction_date"] = datetime.today().strftime("%Y-%m-%d")
             return data
         except Exception as e:
             logger.error("Error parsing transaction details: %s", e)

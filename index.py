@@ -182,8 +182,8 @@ def twilio_webhook():
                             c.execute("INSERT INTO transactions (event_id, date, action, item, amount, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
                                       (current_event_id, show_date, 'debit', item, amount, user_id))
                             msg.body(f"💸 Added: {item} - ₹{amount}")
-                        except Exception:
-                            logging.exception("Failed to add transaction")
+                        except Exception as e:
+                            logging.exception(f"Failed to add transaction {e}")
                             msg.body("❌ Amount should be a number. Try again.")
                     else:
                         msg.body("❌ Usage: add <item> <amount>")
