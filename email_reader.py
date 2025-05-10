@@ -106,7 +106,9 @@ def poll_and_process():
         return
 
     for config in email_configs:
-        log.info(f"\n======== starting trasactional fetch for user {config['user_id']} ======\n")
+        credit_count = 0
+        debit_count = 0
+        logger.info(f"\n======== starting trasactional fetch for user {config['user_id']} ======\n")
         user_id = config['user_id']
         email_config_id = config['email_config_id']
         token = config['token']
@@ -186,6 +188,11 @@ def poll_and_process():
 
                             if response.status_code == 201:
                                 logger.info("Transaction saved for user_id=%s", user_id)
+                                if parsed["action"].lower() == "credit":
+                                    credit_count += 1
+                                elif parsed["action"].lower() == "debit":
+                                    debit_count += 1
+
                                 update_data = {
                                     "last_fetched_email_id": msg_id,
                                     "last_email_fetch_time": datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
@@ -208,9 +215,32 @@ def poll_and_process():
         except Exception as e:
             logger.error("Error processing user_id %s: %s", user_id, e)
 
-        log.info(f"\n======== completed trasactional fetch for user {config['user_id']} ======\n")
+        
+        alert_user_for_transaction(user_id, credit_count, debit_count)
+        logger.info(f"\n======== completed trasactional fetch for user {config['user_id']} ======\n")
 
 
+def alert_user_for_transaction(user_id, credit_count, debit_count):
+    if credit_count > 0 or debit_count > 0:
+        try:
+            notify_payload = {
+                "message": f"💰 You received {credit_count} credit(s) and {debit_count} debit(s) added to your account.\nType 'show pending' to review them.",
+                 
+            }
+
+            notify_resp = requests.post(
+                f"{API_BASE}/api/users/{user_id}/notify-whatsapp",
+                json=notify_payload
+            )
+
+            if notify_resp.status_code == 200:
+                logger.info("Notification sent to user_id=%s", user_id)
+            else:
+                logger.warning("Failed to notify user_id=%s: %s", user_id, notify_resp.text)
+
+        except Exception as e:
+            logger.error("Error sending WhatsApp notification to user_id=%s: %s", user_id, e)
+            
 
 if __name__ == '__main__':
     poll_and_process()
