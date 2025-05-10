@@ -56,8 +56,8 @@ def notify_user(user_id):
                 else:
                     return jsonify({"status": "failed", "error": result}), 500
     except Exception as e:
-        logging.exception("Error fetching email config data")
-        return jsonify({"error": "Internal server error"}), 500
+        logging.exception(f"Error fetching email config data {e}")
+        return jsonify({"error": f"Internal server error {e}"}), 500
 
 
 @app.route('/api/email-configs', methods=['GET'])
@@ -489,7 +489,7 @@ def get_user_by_user_id(user_id, cur):
         logging.error(e)
         return None
 
-def send_whatsapp_notification(body: str):
+def send_whatsapp_notification(body: str, to):
     """
     Sends a WhatsApp message using Twilio.
     :param body: The message body.
