@@ -482,7 +482,7 @@ def get_user_by_user_id(user_id, cur):
         logging.error(e)
         return None
 
-def send_whatsapp_notification(body: str, to: str = TO_WHATSAPP_NUMBER):
+def send_whatsapp_notification(body: str):
     """
     Sends a WhatsApp message using Twilio.
     :param body: The message body.
