@@ -37,8 +37,7 @@ def notify_user(user_id):
     data = request.get_json() 
     body = data.get('message') 
     
-    if not user_info:
-        return jsonify({"error": "User not found"}), 400
+    
 
     if not body:
         return jsonify({"error": "Missing 'message' or 'to' in request body"}), 400
@@ -46,6 +45,8 @@ def notify_user(user_id):
         with get_conn() as conn:
             with conn.cursor() as cur:
                 user_info = get_user_by_user_id(user_id, cur)
+                if not user_info:
+                    return jsonify({"error": "User not found"}), 400
 
                 phone_number = user_info['phone_number']
                 result = send_whatsapp_notification(body, f"whatsapp:{phone_number}")
