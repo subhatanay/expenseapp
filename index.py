@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
-send_whatsapp_notification
+from twilio.rest import Client
 import urllib.parse
 import psycopg2
 from datetime import datetime
