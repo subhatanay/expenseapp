@@ -106,6 +106,7 @@ def poll_and_process():
         return
 
     for config in email_configs:
+        log.info(f"\n======== starting trasactional fetch for user {config['user_id']} ======\n")
         user_id = config['user_id']
         email_config_id = config['email_config_id']
         token = config['token']
@@ -206,6 +207,8 @@ def poll_and_process():
 
         except Exception as e:
             logger.error("Error processing user_id %s: %s", user_id, e)
+
+        log.info(f"\n======== completed trasactional fetch for user {config['user_id']} ======\n")
 
 
 

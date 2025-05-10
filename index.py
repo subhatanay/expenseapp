@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from twilio.twiml.messaging_response import MessagingResponse
+send_whatsapp_notification
 import urllib.parse
 import psycopg2
 from datetime import datetime
@@ -15,6 +16,11 @@ logging.basicConfig(level=logging.INFO)
 
 # Neon DB connection URL from environment variable
 DATABASE_URL = os.getenv("DATABASE_URL")
+# Twilio credentials from env
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_FROM = "whatsapp:+14155238886"  # Twilio Sandbox number
+
 
 # DB connection
 def get_conn():
@@ -24,6 +30,28 @@ def get_conn():
 @app.route('/', methods=['GET'])
 def hello():
     return "Hello! Welcome to the WhatsApp Expense App", 200, {'Content-Type': 'text/plain'}
+
+
+@app.route('/api/users/<user_id>/notify-whatsapp', methods=['POST'])
+def notify_user(user_id):
+    data = request.get_json()
+
+    body = data.get('message')
+
+    user_info = get_user_by_user_id(user_id)
+    if not user_info:
+        return jsonify({"error": "User not found"}), 400
+
+    if not body:
+        return jsonify({"error": "Missing 'message' or 'to' in request body"}), 400
+
+    phone_number = user_info['phone_number']
+    result = send_whatsapp_notification(body, f"whatsapp:{phone_number}")
+
+    if result and result.startswith("SM"):
+        return jsonify({"status": "success", "sid": result})
+    else:
+        return jsonify({"status": "failed", "error": result}), 500
 
 @app.route('/api/email-configs', methods=['GET'])
 def get_email_configs():
@@ -452,4 +480,22 @@ def get_user_by_user_id(user_id, cur):
         return {'user_id': row[0], 'name': row[1], 'phone_number': row[2]} if row else None
     except Exception as e:
         logging.error(e)
+        return None
+
+def send_whatsapp_notification(body: str, to: str = TO_WHATSAPP_NUMBER):
+    """
+    Sends a WhatsApp message using Twilio.
+    :param body: The message body.
+    :param to: Receiver WhatsApp number (format: 'whatsapp:+91xxxxxx')
+    """
+    try:
+        message = client.messages.create(
+            body=body,
+            from_=TWILIO_WHATSAPP_FROM,
+            to=to
+        )
+        print(f"WhatsApp message sent! SID: {message.sid}")
+        return message.sid
+    except Exception as e:
+        print(f"Error sending WhatsApp message: {e}")
         return None
