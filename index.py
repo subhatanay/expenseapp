@@ -34,24 +34,30 @@ def hello():
 
 @app.route('/api/users/<user_id>/notify-whatsapp', methods=['POST'])
 def notify_user(user_id):
-    data = request.get_json()
-
-    body = data.get('message')
-
-    user_info = get_user_by_user_id(user_id)
+    data = request.get_json() 
+    body = data.get('message') 
+    
     if not user_info:
         return jsonify({"error": "User not found"}), 400
 
     if not body:
         return jsonify({"error": "Missing 'message' or 'to' in request body"}), 400
+    try:  
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                user_info = get_user_by_user_id(user_id, cur)
 
-    phone_number = user_info['phone_number']
-    result = send_whatsapp_notification(body, f"whatsapp:{phone_number}")
+                phone_number = user_info['phone_number']
+                result = send_whatsapp_notification(body, f"whatsapp:{phone_number}")
 
-    if result and result.startswith("SM"):
-        return jsonify({"status": "success", "sid": result})
-    else:
-        return jsonify({"status": "failed", "error": result}), 500
+                if result and result.startswith("SM"):
+                    return jsonify({"status": "success", "sid": result})
+                else:
+                    return jsonify({"status": "failed", "error": result}), 500
+    except Exception as e:
+        logging.exception("Error fetching email config data")
+        return jsonify({"error": "Internal server error"}), 500
+
 
 @app.route('/api/email-configs', methods=['GET'])
 def get_email_configs():
