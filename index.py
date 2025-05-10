@@ -180,7 +180,7 @@ def twilio_webhook():
                             amount = float(parts[2])
                             show_date = str(datetime.date.today())
                             c.execute("INSERT INTO transactions (event_id, date, action, item, amount, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
-                                      (current_event_id, show_date, 'add', item, amount, user_id))
+                                      (current_event_id, show_date, 'debit', item, amount, user_id))
                             msg.body(f"💸 Added: {item} - ₹{amount}")
                         except Exception:
                             logging.exception("Failed to add transaction")
