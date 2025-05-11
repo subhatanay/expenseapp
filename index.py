@@ -44,7 +44,7 @@ def get_user_transactions(user_id):
             with conn.cursor() as cur: 
                 user_info = get_user_by_user_id(user_id, cur)
                 if not user_info:
-                    return jsonify({"error": "User not found"}), 400 
+                    return jsonify({"error": f"User {user_id} not found"}), 400 
 
                 base_query = """
                     SELECT 
