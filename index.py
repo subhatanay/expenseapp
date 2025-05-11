@@ -48,8 +48,7 @@ def get_user_transactions(user_id):
 
                 base_query = """
                     SELECT 
-                        t.date, t.action, t.amount, t.merchant, t.item,
-                        e.event_name AS event_name
+                        t.date, t.action, t.amount, t.merchant, t.item, e.event_name AS event_name
                     FROM transactions t
                     LEFT JOIN events e ON t.event_id = e.event_id
                     WHERE t.user_id = %s
@@ -74,7 +73,7 @@ def get_user_transactions(user_id):
                 rows = cur.fetchall()
 
                 # Get total count
-                cur.execute(count_query, params[:len(params)-2])  # Only the user_id/date
+                cur.execute(count_query, params[:len(params) - 2])  # Only the user_id/date
                 total_count = cur.fetchone()[0]
 
                 result = [
@@ -85,8 +84,7 @@ def get_user_transactions(user_id):
                         "amount": float(row[2]),
                         "merchant": row[3],
                         "event": row[5]
-                    }
-                    for row in rows
+                    } for row in rows
                 ]
                 return jsonify({
                     "page": page,
