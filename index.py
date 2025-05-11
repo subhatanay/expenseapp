@@ -36,7 +36,7 @@ def hello():
 def get_user_transactions(user_id):
     date_filter = request.args.get('date')  # Optional: YYYY-MM-DD
     page = int(request.args.get('page', 1))
-    limit = int(request.args.get('limit', 10))
+    limit = int(request.args.get('limit', 100))
     offset = (page - 1) * limit
 
     try:
