@@ -8,6 +8,7 @@ from datetime import datetime
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+from google.auth.transport.requests import Request
 
 # Configuration
 API_BASE = "https://expenseapp-git-main-subhajits-projects-82cd4a28.vercel.app"
@@ -22,6 +23,12 @@ logging.basicConfig(
 
 def get_drive_service(token_json):
     creds = Credentials.from_authorized_user_info(token_json, SCOPES)
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            raise Exception("Invalid Gmail token or no refresh token.")
+        
     return build('drive', 'v3', credentials=creds)
 
 def get_or_create_folder(drive_service):
