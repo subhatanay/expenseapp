@@ -88,10 +88,6 @@ def get_user_transactions(user_id):
                     }
                     for row in rows
                 ]
-
-                cur.close()
-                conn.close()
-
                 return jsonify({
                     "page": page,
                     "limit": limit,
