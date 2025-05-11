@@ -51,7 +51,7 @@ def get_user_transactions(user_id):
                         t.date, t.action, t.amount, t.merchant, t.item,
                         e.event_name AS event_name
                     FROM transactions t
-                    LEFT JOIN event e ON t.event_id = e.event_id
+                    LEFT JOIN events e ON t.event_id = e.event_id
                     WHERE t.user_id = %s
                 """
 
