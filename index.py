@@ -32,6 +32,75 @@ def get_conn():
 def hello():
     return "Hello! Welcome to the WhatsApp Expense App", 200, {'Content-Type': 'text/plain'}
 
+@app.route('/api/users/<int:user_id>/transactions', methods=['GET'])
+def get_user_transactions(user_id):
+    date_filter = request.args.get('date')  # Optional: YYYY-MM-DD
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 10))
+    offset = (page - 1) * limit
+
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur: 
+                user_info = get_user_by_user_id(user_id, cur)
+                if not user_info:
+                    return jsonify({"error": "User not found"}), 400 
+
+                base_query = """
+                    SELECT 
+                        t.date, t.action, t.amount, t.merchant, t.item,
+                        e.event_name AS event_name
+                    FROM transactions t
+                    LEFT JOIN event e ON t.event_id = e.event_id
+                    WHERE t.user_id = %s
+                """
+
+                count_query = "SELECT COUNT(*) FROM transactions t WHERE t.user_id = %s"
+                params = [user_id]
+
+                if date_filter:
+                    try:
+                        datetime.strptime(date_filter, "%Y-%m-%d")
+                    except ValueError:
+                        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+                    base_query += " AND DATE(t.date) = %s"
+                    count_query += " AND DATE(t.date) = %s"
+                    params.append(date_filter)
+
+                base_query += " ORDER BY t.date DESC LIMIT %s OFFSET %s"
+                params += [limit, offset]
+
+                cur.execute(base_query, params)
+                rows = cur.fetchall()
+
+                # Get total count
+                cur.execute(count_query, params[:len(params)-2])  # Only the user_id/date
+                total_count = cur.fetchone()[0]
+
+                result = [
+                    {
+                        "date": row[0].strftime("%Y-%m-%d"),
+                        "action": row[1],
+                        "item": row[4],
+                        "amount": float(row[2]),
+                        "merchant": row[3],
+                        "event": row[5]
+                    }
+                    for row in rows
+                ]
+
+                cur.close()
+                conn.close()
+
+                return jsonify({
+                    "page": page,
+                    "limit": limit,
+                    "total": total_count,
+                    "transactions": result
+                }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/users/<user_id>/notify-whatsapp', methods=['POST'])
 def notify_user(user_id):
@@ -180,7 +249,7 @@ def twilio_webhook():
                             amount = float(parts[2])
                             show_date = str(date.today())
                             c.execute("INSERT INTO transactions (event_id, date, action, item, amount, user_id) VALUES (%s, %s, %s, %s, %s, %s)",
-                                      (current_event_id, show_date, 'debit', item, amount, user_id))
+                                      (current_event_id, show_date, 'DEBIT', item, amount, user_id))
                             msg.body(f"💸 Added: {item} - ₹{amount}")
                         except Exception as e:
                             logging.exception(f"Failed to add transaction {e}")
@@ -507,3 +576,28 @@ def send_whatsapp_notification(body: str, to):
     except Exception as e:
         print(f"Error sending WhatsApp message: {e}")
         return None
+
+# def upload_transactions_to_drive(user_id, transactions, creds: Credentials):
+#     # Step 1: Generate Excel
+#     today_str = datetime.today().strftime("%Y-%m-%d")
+#     file_name = f"{user_id}_transactions_{today_str}.xlsx"
+
+#     df = pd.DataFrame(transactions)
+#     df.to_excel(file_name, index=False)
+
+#     # Step 2: Upload to Google Drive
+#     try:
+#         service = build('drive', 'v3', credentials=creds)
+        
+#         file_metadata = {
+#             'name': file_name,
+#             'mimeType': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+#             # Optionally: 'parents': ['folder_id_here']
+#         }
+#         media = MediaFileUpload(file_name, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+#         uploaded_file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+#         print(f"Uploaded file ID: {uploaded_file.get('id')}")
+
+#     except Exception as e:
+#         print(f"Error uploading to Google Drive: {e}")
