@@ -21,7 +21,7 @@ jobs:
       - name: 📦 Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements_scheduler.txt
+          pip install -r requirements_scheduer.txt
 
       - name: 🚀 Run scheduler script
         run: python report_generator.py
